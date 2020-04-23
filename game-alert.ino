@@ -21,7 +21,7 @@ int clockPin = 0;
 
 void setup() {
   Serial.begin(115200);
-  pinMode(pushButton, INPUT);
+  pinMode(pushButton, INPUT_PULLUP);
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
   attachInterrupt(digitalPinToInterrupt(pushButton), onPressed, FALLING);

@@ -134,32 +134,110 @@ void handleCaptivePortal(WiFiClient client, int countSsids) {
 }
 
 String renderPortal(int countSsids) {
+  int sortedIndexes[countSsids];
+  sortedSsidIndexes(countSsids, sortedIndexes);
   String options = String("");
   for (int i = 0; i < countSsids; i++) {
-    Serial.println(WiFi.SSID(i));
-    options.concat("<option>" + WiFi.SSID(i) + "</option>");
+    options.concat("<option>" + WiFi.SSID(sortedIndexes[i]) + "</option>");
   }
+
   String content =
   String("<!DOCTYPE html>\r\n") +
          "<html>" +
          "<head>" +
-         "<title>WiFi Credentials</title>" +
-         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
+         "<title>Game Alert Wi-Fi</title>" +
+         "<meta name=\"viewport\" content=\"width=device-width,height=device-height,initial-scale=1.0\">" +
          "<style>" +
+         "html {" +
+         "  padding: 0;" +
+         "  margin: 0;" +
+         "  overflow: hidden;" +
+         "}" +
+         "body {" +
+         "  height: 100vh;" +
+         "  width: 100vw;" +
+         "  overflow: hidden;" +
+         "  box-sizing: border-box;" +
+         "  padding: 16px;" +
+         "  margin: 0;" +
+         "  position: relative;" +
+         "}" +
          "select,input,button {" +
-         "  width: 100%;" +
-         "  margin-bottom: 16px;" +
          "  font-size: 20px;" +
+         "  line-height: 36px;" +
+         "  height: 36px;" +
+         "  color: #444;" +
+         "  outline: none;" +
+         "  padding: 0 4px;" +
+         "  box-sizing: border-box;" +
+         "}" +
+         "select,input {" +
+         "  width: 100%;" +
+         "  background: white;" +
+         "  border: none;" +
+         "  border-bottom: solid 2px #888;" +
+         "  margin-bottom: 16px;" +
+         "}" +
+         "button {" +
+         "  background: white;" +
+         "  display: block;" +
+         "  border: none;" +
+         "  box-shadow: 0 3px 1px -2px rgba(0,0,0,.2),0 2px 2px 0 rgba(0,0,0,.14),0 1px 5px 0 rgba(0,0,0,.12);" +
+         "  position: absolute;" +
+         "  margin: 0 16px 16px;" +
+         "  width: calc(100vw - 32px);" +
+         "  left: 0px;" +
+         "  bottom: 0px;" +
+         "}" +
+         "button:active {" +
+         "  box-shadow: 0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12)" +
+         "}" +
+         "@keyframes blink {" +
+         "  0% {opacity: 1;}" +
+         "  12.5% {opacity: 0.3;}" +
+         "  25% {opacity: 0.3;}" +
+         "  37.5% {opacity: 1;}" +
+         "}" +
+         ".yellow-c,.green-c, .blue-c, .red-c {" +
+         "  display: inline-block;" +
+         "  width: 32px;" +
+         "  height: 32px;" +
+         "  border-radius: 16px;" +
+         "  margin: 16px 16px 16px 0;" +
+         "  animation-name: blink;" +
+         "  animation-duration: 2s;" +
+         "  animation-iteration-count: infinite;" +
+         "}" +
+         ".yellow-c {" +
+         "  background-color: yellow;" +
+         "  animation-delay: 0s;" +
+         "}" +
+         ".green-c {" +
+         "  background-color: green;" +
+         "  animation-delay: 0.5s;" +
+         "}" +
+         ".blue-c {" +
+         "  background-color: blue;" +
+         "  animation-delay: 1s;" +
+         "}" +
+         ".red-c {" +
+         "  background-color: red;" +
+         "  animation-delay: 1.5s;" +
          "}" +
          "</style>" +
          "</head>" +
          "<body>" +
-         "<h1>Enter Your WiFi Credentials</h1>" +
+         "<span class=\"yellow-c\"></span>" +
+         "<span class=\"green-c\"></span>" +
+         "<span class=\"blue-c\"></span>" +
+         "<span class=\"red-c\"></span>" +
+         "<h1>Hey there!</h1>" +
+         "<h2>I need your Wi-Fi password.</h2>" +
          "<form method=\"post\" action=\"/\">" +
-         "<select name=\"s\">" +
+         "<select name=\"s\" placeholder=\"SSID\">" +
          options +
          "</select>" +
-         "<input type=\"password\" name=\"p\">" +
+         "<input placeholder=\"Password\" type=\"password\" name=\"p\">" +
          "<button type=\"submit\">Connect</button>" +
          "</form>" +
          "</body>" +
@@ -170,4 +248,26 @@ String renderPortal(int countSsids) {
          "Connection: close\r\n" +
          "\r\n" +
          content;
+}
+
+/**
+ * Populates an array with SSID indexes, sorted by signal strength.
+ */
+void sortedSsidIndexes(int countSsids, int indexes[]) {
+  bool taken[countSsids];
+  for (int i = 0; i < countSsids; i++) {
+    taken[i] = false;
+  }
+  for (int i = 0; i < countSsids; i++) {
+    int greatestStrength = -2147483648;
+    int strongestJ = 0;
+    for (int j = 0; j < countSsids; j++) {
+      if (!taken[j] && WiFi.RSSI(j) > greatestStrength) {
+        greatestStrength = WiFi.RSSI(j);
+        strongestJ = j;
+      }
+    }
+    indexes[i] = strongestJ;
+    taken[strongestJ] = true;
+  }
 }

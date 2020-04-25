@@ -1,3 +1,5 @@
+#include <DNSServer.h>
+
 /*
   This example demonstrates all of the needed on-device IO.
 
@@ -10,6 +12,7 @@
   Board: Generic ESP8266 Module
   Upload Speed: 115200
 */
+#include <ESP8266WiFi.h>
 
 // Must cache interrupt handler in IRAM.  See:
 // https://forum.arduino.cc/index.php?topic=616264.msg4296914#msg4296914
@@ -25,9 +28,11 @@ void setup() {
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
   attachInterrupt(digitalPinToInterrupt(pushButton), onPressed, FALLING);
+
 }
 
 void loop() {
+  promptCredentials();
   digitalWrite(clockPin, HIGH);
   digitalWrite(clockPin, LOW);
   delay(1000);
@@ -58,5 +63,53 @@ bool debounce(int *lastInvoke, int threshold) {
     return true;
   } else {
     return false;
+  }
+}
+
+IPAddress local_IP(192,168,0,1);
+IPAddress gateway(192,168,0,2);
+IPAddress subnet(255,255,255,0);
+
+void promptCredentials() {
+  WiFi.softAPConfig(local_IP, gateway, subnet);
+  WiFi.softAP("game-alert-device", "extremelymoist", 3, false, 1);
+
+
+  while (WiFi.softAPgetStationNum() == 0) {
+    Serial.println("No connections yet");
+    // TODO sequentially blink LEDs while waiting for connection
+    delay(100);
+  }
+  Serial.println("Station connected");
+
+  // Now that a connection has been made, change the blink style
+
+  WiFiServer server(80);
+  server.begin();
+  
+  DNSServer dnsServer;
+  dnsServer.start(53, "*", local_IP);
+
+  while (true) {
+    WiFiClient client = server.available();
+    if (client) {
+      Serial.println("Got client");
+      while (client.connected()) {
+        if (client.available()) {
+          String line = client.readStringUntil('\r');
+          Serial.print(line);
+
+          if (line.length() == 1 && line[0] == '\n') {
+            // serve up the page, blink one LED like a cursor until a response is received
+            Serial.println("HTTP/1.1 200 OK\r\nContent-Type:text/html\r\nContent-length:6\r\nConnection:close\r\n\r\nHello!");
+            client.println("HTTP/1.1 200 OK\r\nContent-Type:text/html\r\nContent-length:6\r\nConnection:close\r\n\r\nHello!");
+            break;
+          }
+        }
+      }
+      delay(1);
+      client.stop();
+    }
+    dnsServer.processNextRequest();
   }
 }

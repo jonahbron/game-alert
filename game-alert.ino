@@ -23,32 +23,23 @@ int dataPin = 3;
 int clockPin = 0;
 
 void setup() {
+  // Resets WiFi info
+  //WiFi.begin("foo", "bar");
+  
   Serial.begin(115200);
   pinMode(pushButton, INPUT_PULLUP);
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
   attachInterrupt(digitalPinToInterrupt(pushButton), onPressed, FALLING);
 
+  WiFi.mode(WIFI_STA);
+  WiFi.begin();
   while (true) {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin();
     int start = millis();
     while (true) {
       if (WiFi.status() == WL_CONNECTED) {
         // Connected to network, end setup and begin loop
         return;
-      }
-      if (WiFi.status() == WL_NO_SSID_AVAIL) {
-        Serial.println("WL_NO_SSID_AVAIL");
-      }
-      if (WiFi.status() == WL_CONNECT_FAILED) {
-        Serial.println("WL_CONNECT_FAILED");
-      }
-      if (WiFi.status() == WL_IDLE_STATUS) {
-        Serial.println("WL_IDLE_STATUS");
-      }
-      if (WiFi.status() == WL_DISCONNECTED) {
-        Serial.println("WL_DISCONNECTED");
       }
       if (millis() - start > 5000) {
         // Timed out, prompt for password again

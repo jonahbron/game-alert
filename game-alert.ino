@@ -1,4 +1,5 @@
 #include <DNSServer.h>
+#include <ESP8266WiFi.h>
 
 /*
   This example demonstrates all of the needed on-device IO.
@@ -12,7 +13,6 @@
   Board: Generic ESP8266 Module
   Upload Speed: 115200
 */
-#include <ESP8266WiFi.h>
 
 // Must cache interrupt handler in IRAM.  See:
 // https://forum.arduino.cc/index.php?topic=616264.msg4296914#msg4296914
@@ -29,10 +29,38 @@ void setup() {
   pinMode(dataPin, OUTPUT);
   attachInterrupt(digitalPinToInterrupt(pushButton), onPressed, FALLING);
 
+  while (true) {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin();
+    int start = millis();
+    while (true) {
+      if (WiFi.status() == WL_CONNECTED) {
+        // Connected to network, end setup and begin loop
+        return;
+      }
+      if (WiFi.status() == WL_NO_SSID_AVAIL) {
+        Serial.println("WL_NO_SSID_AVAIL");
+      }
+      if (WiFi.status() == WL_CONNECT_FAILED) {
+        Serial.println("WL_CONNECT_FAILED");
+      }
+      if (WiFi.status() == WL_IDLE_STATUS) {
+        Serial.println("WL_IDLE_STATUS");
+      }
+      if (WiFi.status() == WL_DISCONNECTED) {
+        Serial.println("WL_DISCONNECTED");
+      }
+      if (millis() - start > 5000) {
+        // Timed out, prompt for password again
+        break;
+      }
+      delay(100);
+    }
+    promptCredentials();
+  }
 }
 
 void loop() {
-  promptCredentials();
   digitalWrite(clockPin, HIGH);
   digitalWrite(clockPin, LOW);
   delay(1000);
@@ -70,6 +98,11 @@ IPAddress local_IP(192,168,0,1);
 IPAddress gateway(192,168,0,2);
 IPAddress subnet(255,255,255,0);
 
+/**
+ * Sets up an AP serving DNS and HTTP to create a captive portal.  Fields requests on
+ * the access point until a completed Wi-Fi credentials form is submitted, at which
+ * point it returns.
+ */
 void promptCredentials() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
@@ -81,13 +114,8 @@ void promptCredentials() {
 
 
   while (WiFi.softAPgetStationNum() == 0) {
-    Serial.println("No connections yet");
-    // TODO sequentially blink LEDs while waiting for connection
     delay(100);
   }
-  Serial.println("Station connected");
-
-  // Now that a connection has been made, change the blink style
 
   WiFiServer server(80);
   server.begin();
@@ -96,43 +124,99 @@ void promptCredentials() {
   dnsServer.start(53, "*", local_IP);
 
   while (true) {
-    routeHttpRequest(server.available(), countSsids);
     dnsServer.processNextRequest();
+    bool gotCredentials = routeHttpRequest(server.available(), countSsids);
+    if (gotCredentials) {
+      return;
+    }
   }
 }
 
-void routeHttpRequest(WiFiClient client, int countSsids) {
+/**
+ * Handles any pending HTTP requests.  If the request was a completed credentials
+ * form, `true` is returned.  Otherwise `false`.
+ */
+bool routeHttpRequest(WiFiClient client, int countSsids) {
   if (client) {
     while (client.connected()) {
       if (client.available()) {
         String requestLine = client.readStringUntil('\r');
         if (requestLine.startsWith("GET ")) {
           handleCaptivePortal(client, countSsids);
+        } else if (requestLine.startsWith("POST ")) {
+          handleCredentials(client);
+          return true;
         }
         // handle other routes in ELSE statements
         break;
       }
     }
-    delay(500);
-    client.stop();
+  }
+  return false;
+}
+
+/**
+ * Handles a POST request, and parses for SSID and password fields.  Those values are
+ * saved to EEPROM so that the WiFi library can remember them.
+ */
+void handleCredentials(WiFiClient client) {
+  bool isBody = false;
+  while (client.connected()) {
+    if (client.available()) {
+      String line = client.readStringUntil('\r');
+      if (isBody) {
+        client.println(String("HTTP/1.1 200 OK\r\n") +
+         "Content-Type: text/plain\r\n" +
+         "Content-Length: 4\r\n" +
+         "Connection: close\r\n" +
+         "\r\n" +
+         "Done");
+         
+        client.stop();
+        String sParam = line.substring(0, line.indexOf('&'));
+        String pParam = line.substring(line.indexOf('&') + 1);
+        String sEncodedValue = sParam.substring(sParam.indexOf('=') + 1);
+        String pEncodedValue = pParam.substring(pParam.indexOf('=') + 1);
+        String ssid = urldecode(sEncodedValue);
+        String password = urldecode(pEncodedValue);
+
+        WiFi.mode(WIFI_STA);
+        WiFi.disconnect();
+        delay(500);
+
+        // Save credentials to EEPROM
+        WiFi.begin(ssid, password);
+        break;
+      }
+      if (line.length() == 1 && line[0] == '\n') {
+        isBody = true;
+      }
+    }
   }
 }
 
+/**
+ * Handles all GET requests.  Responds to the client with an HTML page containing
+ * the credentials form.
+ */
 void handleCaptivePortal(WiFiClient client, int countSsids) {
   while (client.connected()) {
     if (client.available()) {
       String line = client.readStringUntil('\r');
-      Serial.print(line);
       if (line.length() == 1 && line[0] == '\n') {
         // serve up the page, blink one LED like a cursor until a response is received
-        Serial.println(renderPortal(countSsids));
         client.println(renderPortal(countSsids));
+        delay(500);
+        client.stop();
         break;
       }
     }
   }
 }
 
+/**
+ * Renders the HTML for the credentials form, including a list of SSIDs in a select menu.
+ */
 String renderPortal(int countSsids) {
   int sortedIndexes[countSsids];
   sortedSsidIndexes(countSsids, sortedIndexes);
@@ -189,6 +273,9 @@ String renderPortal(int countSsids) {
          "  left: 0px;" +
          "  bottom: 0px;" +
          "}" +
+         "button:disabled {" +
+         "  background: #aaa;" +
+         "}" +
          "button:active {" +
          "  box-shadow: 0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12)" +
          "}" +
@@ -238,7 +325,7 @@ String renderPortal(int countSsids) {
          options +
          "</select>" +
          "<input placeholder=\"Password\" type=\"password\" name=\"p\">" +
-         "<button type=\"submit\">Connect</button>" +
+         "<button type=\"submit\" onClick=\"setTimeout(() => {this.disabled = true;},1);\">Connect</button>" +
          "</form>" +
          "</body>" +
          "</html>";
@@ -251,7 +338,7 @@ String renderPortal(int countSsids) {
 }
 
 /**
- * Populates an array with SSID indexes, sorted by signal strength.
+ * Populates an array with SSID indexes, sorted by signal strength.  Brute force sort.
  */
 void sortedSsidIndexes(int countSsids, int indexes[]) {
   bool taken[countSsids];
@@ -270,4 +357,53 @@ void sortedSsidIndexes(int countSsids, int indexes[]) {
     indexes[i] = strongestJ;
     taken[strongestJ] = true;
   }
+}
+
+/**
+ * @see https://circuits4you.com/2019/03/21/esp8266-url-encode-decode-example/
+ */
+String urldecode(String str)
+{
+    
+    String encodedString="";
+    char c;
+    char code0;
+    char code1;
+    for (int i =0; i < str.length(); i++){
+        c=str.charAt(i);
+      if (c == '+'){
+        encodedString+=' ';  
+      }else if (c == '%') {
+        i++;
+        code0=str.charAt(i);
+        i++;
+        code1=str.charAt(i);
+        c = (h2int(code0) << 4) | h2int(code1);
+        encodedString+=c;
+      } else{
+        
+        encodedString+=c;  
+      }
+      
+      yield();
+    }
+    
+   return encodedString;
+}
+
+/**
+ * @see https://circuits4you.com/2019/03/21/esp8266-url-encode-decode-example/
+ */
+unsigned char h2int(char c)
+{
+    if (c >= '0' && c <='9'){
+        return((unsigned char)c - '0');
+    }
+    if (c >= 'a' && c <='f'){
+        return((unsigned char)c - 'a' + 10);
+    }
+    if (c >= 'A' && c <='F'){
+        return((unsigned char)c - 'A' + 10);
+    }
+    return(0);
 }

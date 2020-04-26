@@ -1,5 +1,6 @@
 #include <DNSServer.h>
 #include <ESP8266WiFi.h>
+#include <Ticker.h>
 
 /*
   This example demonstrates all of the needed on-device IO.
@@ -22,9 +23,11 @@ int pushButton = 2;
 int dataPin = 3;
 int clockPin = 0;
 
+Ticker animation;
+
 void setup() {
   // Resets WiFi info
-  //WiFi.begin("foo", "bar");
+  WiFi.begin("foo", "bar");
   
   Serial.begin(115200);
   pinMode(pushButton, INPUT_PULLUP);
@@ -89,12 +92,21 @@ IPAddress local_IP(192,168,0,1);
 IPAddress gateway(192,168,0,2);
 IPAddress subnet(255,255,255,0);
 
+char data = 0b11101110;
+void yieldAnimationFrame() {
+  data = (data << 1) | (data >> 7);
+  digitalWrite(clockPin, HIGH);
+  digitalWrite(clockPin, LOW);
+  digitalWrite(dataPin, (data & 1) ? HIGH : LOW);
+}
+
 /**
  * Sets up an AP serving DNS and HTTP to create a captive portal.  Fields requests on
  * the access point until a completed Wi-Fi credentials form is submitted, at which
  * point it returns.
  */
 void promptCredentials() {
+  animation.attach(0.5, yieldAnimationFrame);
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(100);
@@ -105,7 +117,7 @@ void promptCredentials() {
 
 
   while (WiFi.softAPgetStationNum() == 0) {
-    delay(100);
+    delay(50);
   }
 
   WiFiServer server(80);
@@ -118,6 +130,7 @@ void promptCredentials() {
     dnsServer.processNextRequest();
     bool gotCredentials = routeHttpRequest(server.available(), countSsids);
     if (gotCredentials) {
+      animation.detach();
       return;
     }
   }

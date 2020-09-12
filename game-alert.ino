@@ -88,8 +88,8 @@ bool debounce(int *lastInvoke, int threshold) {
   }
 }
 
-IPAddress local_IP(192, 168, 0, 0);
-IPAddress gateway(192, 168, 0, 0);
+IPAddress local_IP(192, 168, 1, 1);
+IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 
 char data = 0b11101110;

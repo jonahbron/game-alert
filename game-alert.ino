@@ -73,7 +73,7 @@ void onPressed() {
   // see: https://arduino.stackexchange.com/a/68770/57971
   interrupts();
 
-  if (debounce(&lastPress, 500)) {
+  if (debounce(&lastPress, 5000)) {
     Serial.println(1);
   }
 }
@@ -88,9 +88,9 @@ bool debounce(int *lastInvoke, int threshold) {
   }
 }
 
-IPAddress local_IP(192,168,0,1);
-IPAddress gateway(192,168,0,2);
-IPAddress subnet(255,255,255,0);
+IPAddress local_IP(192, 168, 0, 0);
+IPAddress gateway(192, 168, 0, 0);
+IPAddress subnet(255, 255, 255, 0);
 
 char data = 0b11101110;
 void yieldAnimationFrame() {

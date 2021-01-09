@@ -22,6 +22,7 @@ void ICACHE_RAM_ATTR onPressed ();
 int pushButton = 2;
 int dataPin = 3;
 int clockPin = 0;
+int CONNECT_TIMEOUT_MS = 15000;
 
 Ticker animation;
 
@@ -44,7 +45,7 @@ void setup() {
         // Connected to network, end setup and begin loop
         return;
       }
-      if (millis() - start > 5000) {
+      if (millis() - start > CONNECT_TIMEOUT_MS) {
         // Timed out, prompt for password again
         break;
       }

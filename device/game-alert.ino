@@ -1,5 +1,6 @@
 #include <DNSServer.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
 #include <Ticker.h>
 
 /*
@@ -15,6 +16,14 @@
   Upload Speed: 115200
 */
 
+#define API_HOST "http://192.168.86.35:8000"
+
+// 0 Jonah
+// 1 Jesse
+// 2 Jake
+// 3 Nick
+#define PERSON_INDEX '0'
+
 // Must cache interrupt handler in IRAM.  See:
 // https://forum.arduino.cc/index.php?topic=616264.msg4296914#msg4296914
 void ICACHE_RAM_ATTR onPressed ();
@@ -23,6 +32,8 @@ int pushButton = 2;
 int dataPin = 3;
 int clockPin = 0;
 int CONNECT_TIMEOUT_MS = 15000;
+char PERSON_STATUS = '0';
+
 
 Ticker animation;
 
@@ -74,7 +85,15 @@ void onPressed() {
   // see: https://arduino.stackexchange.com/a/68770/57971
   interrupts();
 
-  if (debounce(&lastPress, 5000)) {
+  if (debounce(&lastPress, 500)) {
+
+    // TODO maybe move this net code out of interrupt function?
+    if (PERSON_STATUS == '1') {
+      PERSON_STATUS = '0';
+    } else {
+      PERSON_STATUS = '1';
+    }
+    pushStatusUpdate();
     Serial.println(1);
   }
 }
@@ -86,6 +105,28 @@ bool debounce(int *lastInvoke, int threshold) {
     return true;
   } else {
     return false;
+  }
+}
+
+void pushStatusUpdate() {
+  // wait for WiFi connection
+  if ((WiFi.status() == WL_CONNECTED)) {
+    WiFiClient client;
+    HTTPClient http;
+    http.begin(client, API_HOST);
+    http.addHeader("Content-Length", "3");
+    String body = "";
+    body.concat(PERSON_INDEX);
+    body.concat('=');
+    body.concat(PERSON_STATUS);
+    int httpCode = http.POST(body);
+
+    if (httpCode > 0) {
+      if (httpCode == HTTP_CODE_OK) {
+        Serial.println("OK!");
+      }
+    }
+    http.end();
   }
 }
 

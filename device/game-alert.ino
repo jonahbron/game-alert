@@ -66,6 +66,8 @@ void setup() {
   }
 }
 
+bool toggleFlag = false;
+
 void loop() {
   digitalWrite(clockPin, HIGH);
   digitalWrite(clockPin, LOW);
@@ -78,6 +80,7 @@ void loop() {
   digitalWrite(clockPin, LOW);
   delay(1000);
   digitalWrite(dataPin, LOW);
+  pushStatusUpdate();
 }
 int lastPress = 0;
 void onPressed() {
@@ -93,7 +96,7 @@ void onPressed() {
     } else {
       PERSON_STATUS = '1';
     }
-    pushStatusUpdate();
+    toggleFlag = true;
     Serial.println(1);
   }
 }
@@ -110,23 +113,16 @@ bool debounce(int *lastInvoke, int threshold) {
 
 void pushStatusUpdate() {
   // wait for WiFi connection
-  if ((WiFi.status() == WL_CONNECTED)) {
-    WiFiClient client;
-    HTTPClient http;
-    http.begin(client, API_HOST);
-    http.addHeader("Content-Length", "3");
-    String body = "";
-    body.concat(PERSON_INDEX);
-    body.concat('=');
-    body.concat(PERSON_STATUS);
-    int httpCode = http.POST(body);
-
-    if (httpCode > 0) {
-      if (httpCode == HTTP_CODE_OK) {
-        Serial.println("OK!");
-      }
+  if (toggleFlag) {
+    toggleFlag = false;
+    if (WiFi.status() == WL_CONNECTED) {
+      WiFiClient client;
+      HTTPClient http;
+      http.begin(client, API_HOST);
+      char body[] = {PERSON_INDEX, '=', PERSON_STATUS, '\0'};
+      http.POST(body);
+      http.end();
     }
-    http.end();
   }
 }
 

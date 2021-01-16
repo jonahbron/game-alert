@@ -16,7 +16,7 @@
   Upload Speed: 115200
 */
 
-#define API_HOST "http://192.168.86.35:8000"
+#define API_HOST "http://192.168.86.38:8000"
 
 // 0 Jonah
 // 1 Jesse
@@ -39,7 +39,7 @@ Ticker animation;
 
 void setup() {
   // Resets WiFi info
-  WiFi.begin("foo", "bar");
+  //WiFi.begin("foo", "bar");
   
   Serial.begin(115200);
   pinMode(pushButton, INPUT_PULLUP);
@@ -69,6 +69,10 @@ void setup() {
 bool toggleFlag = false;
 
 void loop() {
+  delay(1000);
+  pullStatusUpdate();
+  delay(1000);
+  /*
   digitalWrite(clockPin, HIGH);
   digitalWrite(clockPin, LOW);
   delay(1000);
@@ -80,6 +84,7 @@ void loop() {
   digitalWrite(clockPin, LOW);
   delay(1000);
   digitalWrite(dataPin, LOW);
+  */
   pushStatusUpdate();
 }
 int lastPress = 0;
@@ -124,6 +129,57 @@ void pushStatusUpdate() {
       http.end();
     }
   }
+}
+
+void pullStatusUpdate() {
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFiClient client;
+    HTTPClient http;
+    http.begin(client, API_HOST);
+    http.GET();
+    String payload = http.getString();
+    Serial.println(payload);
+    /*
+     * Example body payload:
+     * 
+     * ```
+     * 83972834
+     * 0010
+     * ```
+     * 
+     * First line is the time to wait until pinging again, second line is status.
+     */
+
+    int secondsUntilNextPing = getSecondsUntilNextPing(payload);
+    int l = payload.length() - 1;// subtract one to trim \n
+    char statuses[4] = {
+      payload.charAt(l - 4),
+      payload.charAt(l - 3),
+      payload.charAt(l - 2),
+      payload.charAt(l - 1),
+    };
+    renderStatus(statuses);
+    Serial.println(secondsUntilNextPing);
+    http.end();
+  }
+}
+
+void renderStatus(char statuses[4]) {
+  for (int i=0; i < 4; i++) {
+    digitalWrite(dataPin, (statuses[i] == '1') ? HIGH : LOW);
+    digitalWrite(clockPin, HIGH);
+    digitalWrite(clockPin, LOW);
+  }
+}
+
+int getSecondsUntilNextPing(String payload) {
+  int secondsUntilNextPing;
+  for (int i=0; i < payload.length(); i++) {
+    if (payload.charAt(i) == '\n') {
+      secondsUntilNextPing = payload.substring(0, i).toInt();
+    }
+  }
+  return secondsUntilNextPing;
 }
 
 IPAddress local_IP(192, 168, 1, 1);

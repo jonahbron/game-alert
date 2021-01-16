@@ -38,8 +38,9 @@ for await (const req of s) {
  * TODO send back the number of seconds to wait before the next poll
  */
 async function handleGet(req: ServerRequest): Promise<void> {
+  const statuses = PEOPLE_STATUS.map(s => s ? '1' : '0').join('')
   req.respond({
-    body: PEOPLE_STATUS.map(s => s ? '1' : '0').join('') + '\n',
+    body: `${secondsUntilNextPing()}\n${statuses}\n`,
   });
 }
 
@@ -55,5 +56,12 @@ async function handlePost(req: ServerRequest): Promise<void> {
       PEOPLE_STATUS[index] = newStatus === '1';
     }
   }
-  req.respond({});
+  req.respond({
+    body: `${secondsUntilNextPing()}\n`,
+  });
+}
+
+function secondsUntilNextPing(): number {
+  // One minute.
+  return 1 * 60;
 }

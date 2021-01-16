@@ -17,9 +17,9 @@ const PEOPLE_STATUS = [
   false,
 ];
 
-const s = serve({port: 8000});
+const s = serve({port: 8765});
 
-console.log('http://localhost:8000');
+console.log('http://localhost:8765');
 
 for await (const req of s) {
   switch (req.method) {

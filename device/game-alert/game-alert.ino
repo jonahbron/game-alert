@@ -16,7 +16,7 @@
   Upload Speed: 115200
 */
 
-#define API_HOST "http://192.168.86.38:8000"
+#define API_HOST "http://jonah.name:8765"
 
 // 0 Jonah
 // 1 Jesse

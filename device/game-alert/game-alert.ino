@@ -96,8 +96,7 @@ int sleepDuration = 60000;
 void loop() {
   pushStatusUpdate();
 
-  int now = millis();
-  if (now - lastPushTime > sleepDuration) {
+  if (millis() - lastPushTime > sleepDuration) {
     wakeAndConnect();
     // TODO since wifi is on already, check if button has been pressed
     pullStatusUpdate();
@@ -182,7 +181,7 @@ void pullStatusUpdate() {
     Serial.println(secondsUntilNextPing);
     http.end();
 
-    lastPushTime = now;
+    lastPushTime = millis();
   }
 }
 

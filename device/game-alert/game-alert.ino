@@ -18,6 +18,8 @@
 
 #define API_HOST "http://jonah.name:8765"
 
+// TODO: replace with chip ID lookup:
+// TODO: https://arduino-esp8266.readthedocs.io/en/latest/libraries.html#esp-specific-apis
 // 0 Jonah
 // 1 Jesse
 // 2 Jake
@@ -31,7 +33,7 @@ void ICACHE_RAM_ATTR onPressed ();
 int pushButton = 2;
 int dataPin = 3;
 int clockPin = 0;
-int CONNECT_TIMEOUT_MS = 15000;
+int CONNECT_TIMEOUT_MS = 20000;
 char PERSON_STATUS = '0';
 
 
@@ -53,7 +55,10 @@ void setup() {
     int start = millis();
     while (true) {
       if (WiFi.status() == WL_CONNECTED) {
-        // Connected to network, end setup and begin loop
+        // Confirmed network connection, disconnect, end setup and begin loop
+        WiFi.mode(WIFI_OFF);
+        WiFi.forceSleepBegin();
+        yield();
         return;
       }
       if (millis() - start > CONNECT_TIMEOUT_MS) {
@@ -68,24 +73,36 @@ void setup() {
 
 bool toggleFlag = false;
 
+void wakeAndConnect() {
+  WiFi.forceSleepWake();
+  yield();
+  WiFi.mode(WIFI_STA);
+  WiFi.begin();
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.println("trying to connect");
+    delay(1000);
+  }
+}
+
+void disconnectAndSleep() {
+  WiFi.mode(WIFI_OFF);
+  WiFi.forceSleepBegin();
+  yield();
+}
+
+
+int lastPushTime = millis();
+int sleepDuration = 60000;
 void loop() {
-  delay(1000);
-  pullStatusUpdate();
-  delay(1000);
-  /*
-  digitalWrite(clockPin, HIGH);
-  digitalWrite(clockPin, LOW);
-  delay(1000);
-  digitalWrite(clockPin, HIGH);
-  digitalWrite(clockPin, LOW);
-  delay(1000);
-  digitalWrite(dataPin, HIGH);
-  digitalWrite(clockPin, HIGH);
-  digitalWrite(clockPin, LOW);
-  delay(1000);
-  digitalWrite(dataPin, LOW);
-  */
   pushStatusUpdate();
+
+  if (millis() - lastPushTime > sleepDuration) {
+    wakeAndConnect();
+    // TODO since wifi is on already, check if button has been pressed
+    pullStatusUpdate();
+    disconnectAndSleep();
+  }
+  delay(100);
 }
 int lastPress = 0;
 void onPressed() {
@@ -95,13 +112,13 @@ void onPressed() {
 
   if (debounce(&lastPress, 500)) {
 
-    // TODO maybe move this net code out of interrupt function?
     if (PERSON_STATUS == '1') {
       PERSON_STATUS = '0';
     } else {
       PERSON_STATUS = '1';
     }
     toggleFlag = true;
+    // TODO immediately render update
     Serial.println(1);
   }
 }
@@ -117,8 +134,8 @@ bool debounce(int *lastInvoke, int threshold) {
 }
 
 void pushStatusUpdate() {
-  // wait for WiFi connection
   if (toggleFlag) {
+    wakeAndConnect();
     toggleFlag = false;
     if (WiFi.status() == WL_CONNECTED) {
       WiFiClient client;
@@ -128,6 +145,8 @@ void pushStatusUpdate() {
       http.POST(body);
       http.end();
     }
+    pullStatusUpdate();
+    disconnectAndSleep();
   }
 }
 
@@ -161,6 +180,8 @@ void pullStatusUpdate() {
     renderStatus(statuses);
     Serial.println(secondsUntilNextPing);
     http.end();
+
+    lastPushTime = millis();
   }
 }
 
